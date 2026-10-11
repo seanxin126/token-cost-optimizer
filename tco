@@ -1,0 +1,32 @@
+#!/bin/bash
+# tco — token-cost-optimizer 全局入口
+# 用法: tco <文件> [输出文件]
+# 自动识别文件类型，调用对应的压缩器，先估算 token 再压缩，最后报告节省率。
+set -e
+DIR="$(cd "$(dirname "$0")/scripts" && pwd)"
+F="$1"
+OUT="$2"
+
+if [ -z "$F" ] || [ ! -f "$F" ]; then
+  echo "用法: tco <文件> [输出文件]"; exit 1
+fi
+
+echo "--- 预估 ---"
+python3 "$DIR/estimate_tokens.py" "$F" 2>/dev/null | head -4
+
+case "$F" in
+  *.html|*.htm)  S="prune_dom.py" ;;
+  *.json|*.jsonl) S="compress_json.py" ;;
+  *.log)         S="clean_log.py" ;;
+  *.py|*.js|*.ts) S="prune_code.py" ;;
+  *) echo "未知类型，按纯文本做日志去噪"; S="clean_log.py" ;;
+esac
+
+echo "--- 压缩 ($S) ---"
+if [ -n "$OUT" ]; then
+  python3 "$DIR/$S" "$F" > "$OUT" 2>/dev/null || python3 "$DIR/$S" "$F" | tail -n +2 > "$OUT"
+  echo "已写入: $OUT"
+  python3 "$DIR/estimate_tokens.py" "$OUT" 2>/dev/null | head -4
+else
+  python3 "$DIR/$S" "$F"
+fi
