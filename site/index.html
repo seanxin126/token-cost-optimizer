@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>token-cost-optimizer — stop paying for prompt noise</title>
+<meta name="description" content="A transparent proxy that strips noise from your LLM prompts before it costs you money. One line of code to integrate. Open source, MIT.">
+<style>
+  :root { --ink: #1a1a1a; --muted: #5f5f5f; --line: #e8e8e8; --accent: #0f6b3a; --bg: #fbfbfa; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.65; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+  header { padding: 72px 0 40px; }
+  h1 { font-size: 2.1rem; line-height: 1.25; letter-spacing: -0.02em; margin-bottom: 18px; }
+  h1 .strike { color: var(--muted); }
+  .lede { font-size: 1.12rem; color: var(--muted); max-width: 60ch; }
+  .cta-row { display: flex; gap: 12px; margin: 28px 0 8px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.98rem; }
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-ghost { border: 1px solid var(--line); color: var(--ink); background: #fff; }
+  .note { font-size: 0.85rem; color: var(--muted); }
+  section { padding: 36px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 1.25rem; margin-bottom: 14px; letter-spacing: -0.01em; }
+  p { margin-bottom: 14px; color: #333; }
+  p.muted, li.muted { color: var(--muted); }
+  pre { background: #111; color: #e8e8e8; padding: 18px; border-radius: 10px; overflow-x: auto; font-size: 0.86rem; line-height: 1.55; margin: 16px 0; }
+  .diff-old { color: #f08080; } .diff-new { color: #7ddf9a; } .dim { color: #888; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+  ul.honest { list-style: none; }
+  ul.honest li { padding: 8px 0 8px 28px; position: relative; color: #333; }
+  ul.honest li::before { content: "—"; position: absolute; left: 0; color: var(--muted); }
+  footer { padding: 40px 0 64px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.86rem; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Your LLM bill has a leak.<br><span class="strike">It's the noise in your prompts.</span></h1>
+    <p class="lede">Tool outputs, build logs, JSON dumps, pasted HTML — every token of noise costs you money. token-cost-optimizer is a transparent proxy that strips it before it reaches the API. You change one line of code.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/seanxin126/token-cost-optimizer">Get it on GitHub</a>
+      <a class="btn btn-ghost" href="#how">How it works</a>
+    </div>
+    <p class="note">Open source (MIT). Self-host free on Cloudflare Workers. No account, no signup.</p>
+  </header>
+
+  <section id="how">
+    <h2>One line to integrate</h2>
+    <p>Point your OpenAI-compatible client at the gateway instead of the API. Everything else stays the same — same SDK, same key, same models.</p>
+<pre><span class="dim"># before</span>
+<span class="diff-old">client = OpenAI(base_url="https://api.openai.com/v1", ...)</span>
+
+<span class="dim"># after</span>
+<span class="diff-new">client = OpenAI(base_url="https://your-gateway.workers.dev/v1", ...)</span></pre>
+    <p class="muted">The gateway compresses the bulky parts of each request, forwards the rest untouched, and reports tokens saved in the response headers. Your API key is forwarded, never stored — or self-host and keep everything on your own infrastructure.</p>
+  </section>
+
+  <section>
+    <h2>What it actually saves</h2>
+    <p>Measured on real inputs, not benchmarks designed to impress:</p>
+    <table>
+      <tr><th>Input</th><th>Saved</th></tr>
+      <tr><td>Python source → signature skeleton</td><td class="num">91.9%</td></tr>
+      <tr><td>Terminal build log → denoised</td><td class="num">63.5%</td></tr>
+      <tr><td>JSON API response → schema + sample</td><td class="num">70–98%</td></tr>
+      <tr><td>HTML page → readable content</td><td class="num">90–98%</td></tr>
+    </table>
+    <p class="muted">Ranges depend on how noisy your input is. Tight prompts have nothing to strip — the gateway passes them through and tells you so.</p>
+  </section>
+
+  <section>
+    <h2>What it won't do</h2>
+    <ul class="honest">
+      <li>Rewrite your prompts or change their meaning. Noise removal only.</li>
+      <li>Replace the full Python toolkit's AST code analysis — the gateway does a lighter heuristic pass.</li>
+      <li>Cache anything. This shrinks what you send; it doesn't remember it.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Two ways to use it</h2>
+    <p><strong>Gateway</strong> — drop-in proxy for OpenAI-compatible APIs. Deploy the Worker yourself in about ten minutes, free tier is plenty.</p>
+    <p><strong>CLI toolkit</strong> — seven small Python scripts for offline use. Pipe a file through <code>tco</code> and see the savings before you send anything.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/seanxin126/token-cost-optimizer">Star it on GitHub</a>
+    </div>
+    <p class="note">A managed hosted version (~$9/mo) is planned for people who'd rather not touch wrangler. The open-source gateway comes first.</p>
+  </section>
+
+  <footer>
+    <p>Built by someone who got tired of paying for log noise.<br>
+    MIT licensed. <a href="https://github.com/seanxin126/token-cost-optimizer">github.com/seanxin126/token-cost-optimizer</a></p>
+  </footer>
+
+</div>
+</body>
+</html>
