@@ -1,0 +1,8 @@
+name = "tco-gateway"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Upstream LLM API. Override per environment; Authorization header is
+# forwarded from the client and never stored.
+[vars]
+UPSTREAM_BASE_URL = "https://api.openai.com"
