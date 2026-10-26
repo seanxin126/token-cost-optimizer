@@ -1,0 +1,131 @@
+openapi: 3.0.3
+info:
+  title: Token Kit for AI Agents
+  version: "1.0"
+  description: >-
+    Estimate tokens with a public formula and convert JSON, CSV, or HTML
+    tables to Markdown tables. Token counts are approximate, not an official
+    tokenizer result: CJK characters count as 1 token each, non-CJK
+    characters count as about 4 characters per token. Also listed on
+    RapidAPI as Token Kit for AI Agents, with a free tier of 200
+    requests per month.
+  contact:
+    url: https://rapidapi.com/xinqian/api/token-kit-for-ai-agents
+  license:
+    name: MIT
+servers:
+  - url: https://token.qianxin0126.eu.org
+    description: Direct Token Kit server
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Server is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+  /v1/count:
+    post:
+      summary: Estimate token count
+      description: >-
+        Returns an approximate token estimate using the public formula
+        tokens = round(CJK + non-CJK / 4). This is not an official
+        tokenizer result for any model.
+      operationId: countTokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  description: Text to count.
+                model:
+                  type: string
+                  description: Optional model name, echoed back in the response.
+      responses:
+        "200":
+          description: Approximate token estimate.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model:
+                    type: string
+                  chars:
+                    type: integer
+                    description: Total characters in text.
+                  cjk_chars:
+                    type: integer
+                    description: >-
+                      Characters in U+2E80-U+9FFF, U+3400-U+4DBF, or
+                      U+F900-U+FAFF.
+                  words:
+                    type: integer
+                  tokens_estimate:
+                    type: integer
+                    description: Approximate token count.
+                  method:
+                    type: string
+                    example: approximate
+                  note:
+                    type: string
+        "400":
+          description: Invalid request body.
+  /v1/convert:
+    post:
+      summary: Convert a table to Markdown
+      description: >-
+        Converts pasted JSON, CSV, or HTML table input to a Markdown
+        table. For JSON, a list of objects becomes a table and a single
+        object becomes a key/value table. This endpoint does not fetch
+        URLs.
+      operationId: convertTable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - input
+                - from
+              properties:
+                input:
+                  type: string
+                  description: Pasted JSON, CSV, or HTML table text.
+                from:
+                  type: string
+                  enum:
+                    - json
+                    - csv
+                    - html-table
+      responses:
+        "200":
+          description: Markdown table.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - markdown
+                properties:
+                  markdown:
+                    type: string
+        "400":
+          description: Invalid input or unsupported format.
