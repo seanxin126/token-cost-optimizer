@@ -71,14 +71,14 @@ Your LLM API key goes in the request as usual; the gateway forwards it and never
 ```
 scripts/        the 7 Python compressors + tco entry point (offline toolkit)
 gateway/        the Cloudflare Worker (JS port of the core compressors)
-SKILL.md        the original role-prompt this project was born from (see below)
+site/           the landing page source
 ```
 
 ## Origin story
 
 This started as a personal problem: I was running AI agents and watching tokens burn on log noise and bloated tool outputs. I asked an AI to act in a "skill" role and generate a set of compression scripts. It worked unreasonably well, so I kept using them, kept improving them, and eventually put a gateway in front so I wouldn't have to think about it at all.
 
-`SKILL.md` is that original role-prompt, kept for provenance. An AI wrote the tool that saves you money on AI. Make of that what you will.
+An AI wrote the tool that saves you money on AI. Make of that what you will.
 
 ## License
 
