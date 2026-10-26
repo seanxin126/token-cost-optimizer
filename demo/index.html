@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Kit demo - estimate tokens, convert tables to Markdown</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#111}
+h1{font-size:1.6rem} h2{margin-top:2rem}
+textarea{width:100%;min-height:140px;padding:.6rem;font:inherit;box-sizing:border-box}
+select,button{font:inherit;padding:.45rem .8rem;margin:.3rem .3rem .3rem 0}
+pre{background:#f4f4f4;padding:1rem;white-space:pre-wrap;word-break:break-word;overflow:auto}
+.note{background:#fff8e1;border:1px solid #e6c200;padding:.8rem}
+a{color:#0b5fff}
+.small{color:#555;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>Token Kit demo</h1>
+<p>Estimate tokens and convert JSON, CSV, or HTML tables to Markdown tables, in your browser.</p>
+<p class="note"><strong>Approximate, not an official tokenizer.</strong> Token counts use a public formula: CJK characters count as 1 token each, non-CJK characters count as about 4 characters per token. Do not use this count as an official tokenizer result for any model.</p>
+<p class="small">Privacy: everything on this page runs in your browser. Nothing you type is sent to a server, no login, no API key. To call the real API, use the RapidAPI links below.</p>
+
+<h2>1. Estimate tokens</h2>
+<label for="countInput">Text to count</label>
+<textarea id="countInput" placeholder="Type or paste text here. Try: Hello world, or Chinese text.">Hello world, this is a test.</textarea>
+<p id="countOut">Tokens (estimate): 7 | Characters: 28 | CJK characters: 0 | Words: 6</p>
+<p class="small">Formula, same as the API: tokens = round(CJK + non-CJK / 4). CJK means characters in U+2E80-U+9FFF, U+3400-U+4DBF, or U+F900-U+FAFF.</p>
+
+<h2>2. Convert a table to Markdown</h2>
+<label for="formatSelect">Input format</label>
+<select id="formatSelect">
+<option value="json">JSON</option>
+<option value="csv">CSV</option>
+<option value="html-table">HTML table</option>
+</select>
+<label for="convertInput">Input (paste only - this demo does not fetch URLs)</label>
+<textarea id="convertInput" placeholder='JSON example: [{"name":"Ada","role":"Dev"},{"name":"Bo","role":"Ops"}]'>[{"name":"Ada","role":"Dev"},{"name":"Bo","role":"Ops"}]</textarea>
+<button id="convertBtn" type="button">Convert</button>
+<button id="copyBtn" type="button">Copy Markdown</button>
+<pre id="convertOut">| name | role |
+| --- | --- |
+| Ada | Dev |
+| Bo | Ops |</pre>
+<p id="convertErr" class="small"></p>
+
+<h2>Use the real API</h2>
+<ul>
+<li><a href="https://rapidapi.com/xinqian/api/token-kit-for-ai-agents">Token Kit for AI Agents on RapidAPI</a> - POST /v1/count and POST /v1/convert. Free tier: 200 requests/month.</li>
+<li><a href="https://rapidapi.com/xinqian/api/cleandata-for-ai-agents">CleanData for AI Agents on RapidAPI</a> - clean tabular data before counting.</li>
+<li><a href="https://github.com/seanxin126/token-cost-optimizer">token-cost-optimizer on GitHub</a> - the open-source scripts behind this demo.</li>
+</ul>
+<p class="small">This demo does not fetch URLs and does not claim to convert a URL to Markdown. That feature is not live.</p>
+
+<script>
+var CJK_RE = /[\u2e80-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g;
+function estimateTokens(text) {
+  var cjk = (text.match(CJK_RE) || []).length;
+  var nonCjk = text.length - cjk;
+  return Math.floor(cjk + nonCjk / 4 + 0.5);
+}
+function countWords(text) {
+  var t = text.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+function updateCount() {
+  var text = document.getElementById('countInput').value;
+  var cjk = (text.match(CJK_RE) || []).length;
+  document.getElementById('countOut').textContent =
+    'Tokens (estimate): ' + estimateTokens(text) +
+    ' | Characters: ' + text.length +
+    ' | CJK characters: ' + cjk +
+    ' | Words: ' + countWords(text);
+}
+function escapeCell(s) { return String(s).replace(/\|/g, '\\|'); }
+function rowsToMarkdown(rows) {
+  if (!rows || !rows.length) return '';
+  var head = rows[0];
+  var out = ['| ' + head.map(escapeCell).join(' | ') + ' |',
+             '| ' + head.map(function(){ return '---'; }).join(' | ') + ' |'];
+  for (var i = 1; i < rows.length; i++) {
+    out.push('| ' + rows[i].map(escapeCell).join(' | ') + ' |');
+  }
+  return out.join('\n');
+}
+function jsonToMarkdown(data) {
+  if (Array.isArray(data) && data.length && data.every(function(x){ return x && typeof x === 'object' && !Array.isArray(x); })) {
+    var keys = [];
+    data.forEach(function(x){ Object.keys(x).forEach(function(k){ if (keys.indexOf(k) === -1) keys.push(k); }); });
+    var rows = [keys];
+    data.forEach(function(x){ rows.push(keys.map(function(k){ return x[k] === undefined || x[k] === null ? '' : String(x[k]); })); });
+    return rowsToMarkdown(rows);
+  }
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    var rows2 = [['key', 'value']];
+    Object.keys(data).forEach(function(k){ rows2.push([k, String(data[k])]); });
+    return rowsToMarkdown(rows2);
+  }
+  return '```json\n' + JSON.stringify(data, null, 2) + '\n```';
+}
+function parseCsv(text) {
+  var rows = [], row = [], cur = '', inQuotes = false;
+  for (var i = 0; i < text.length; i++) {
+    var ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { cur += '"'; i++; } else { inQuotes = false; }
+      } else { cur += ch; }
+    } else if (ch === '"') { inQuotes = true; }
+    else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+    else if (ch !== '\r') { cur += ch; }
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(function(r){ return r.some(function(c){ return c.trim() !== ''; }); });
+}
+function htmlTableToMarkdown(text) {
+  var doc = new DOMParser().parseFromString(text, 'text/html');
+  var table = doc.querySelector('table');
+  if (!table) return '';
+  var rows = [];
+  table.querySelectorAll('tr').forEach(function(tr){
+    var cells = [];
+    tr.querySelectorAll('th, td').forEach(function(c){ cells.push(c.textContent.trim()); });
+    if (cells.length) rows.push(cells);
+  });
+  return rowsToMarkdown(rows);
+}
+function doConvert() {
+  var fmt = document.getElementById('formatSelect').value;
+  var input = document.getElementById('convertInput').value;
+  var err = document.getElementById('convertErr');
+  err.textContent = '';
+  try {
+    var out = '';
+    if (fmt === 'json') { out = jsonToMarkdown(JSON.parse(input)); }
+    else if (fmt === 'csv') { out = rowsToMarkdown(parseCsv(input)); }
+    else if (fmt === 'html-table') { out = htmlTableToMarkdown(input); }
+    document.getElementById('convertOut').textContent = out;
+  } catch (e) {
+    document.getElementById('convertOut').textContent = '';
+    err.textContent = 'Convert failed: ' + e.message;
+  }
+}
+document.getElementById('countInput').addEventListener('input', updateCount);
+document.getElementById('convertBtn').addEventListener('click', doConvert);
+document.getElementById('formatSelect').addEventListener('change', doConvert);
+document.getElementById('copyBtn').addEventListener('click', function(){
+  var t = document.getElementById('convertOut').textContent;
+  if (navigator.clipboard) { navigator.clipboard.writeText(t); }
+});
+updateCount();
+</script>
+</body>
+</html>
