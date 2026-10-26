@@ -6,6 +6,14 @@ If you run AI agents, you've seen it: a tool returns 40KB of JSON, a build log d
 
 token-cost-optimizer sits between your app and the LLM API and strips the noise before it costs you money.
 
+## Hosted API version
+
+If you prefer a hosted API over running the scripts, Token Kit for AI Agents is available on RapidAPI:
+https://rapidapi.com/xinqian/api/token-kit-for-ai-agents
+It estimates tokens with a public formula and converts JSON, CSV, or HTML tables to Markdown tables.
+Free tier: 200 requests/month. Counting is approximate, not an official tokenizer.
+From the same provider: CleanData for AI Agents (https://rapidapi.com/xinqian/api/cleandata-for-ai-agents) cleans tabular data before counting.
+
 ## How it works
 
 Point your OpenAI-compatible client at the gateway instead of the API directly:
@@ -63,14 +71,14 @@ Your LLM API key goes in the request as usual; the gateway forwards it and never
 ```
 scripts/        the 7 Python compressors + tco entry point (offline toolkit)
 gateway/        the Cloudflare Worker (JS port of the core compressors)
-site/           the landing page source
+SKILL.md        the original role-prompt this project was born from (see below)
 ```
 
 ## Origin story
 
 This started as a personal problem: I was running AI agents and watching tokens burn on log noise and bloated tool outputs. I asked an AI to act in a "skill" role and generate a set of compression scripts. It worked unreasonably well, so I kept using them, kept improving them, and eventually put a gateway in front so I wouldn't have to think about it at all.
 
-An AI wrote the tool that saves you money on AI. Make of that what you will.
+`SKILL.md` is that original role-prompt, kept for provenance. An AI wrote the tool that saves you money on AI. Make of that what you will.
 
 ## License
 
