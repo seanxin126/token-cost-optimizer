@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: CleanData for AI Agents
+  version: "1.0"
+  description: >-
+    Clean tabular data for LLM pipelines in one call: strip zero-width and
+    invisible Unicode characters, normalize whitespace, drop empty rows,
+    and return a compact Markdown table. Currency and other values are
+    kept as strings, not parsed to numbers. Measured on real output with
+    cl100k_base: a 200-row scrape drops from 6,761 tokens of raw JSON to
+    3,458 tokens of clean Markdown, a 49 percent reduction. Access is via
+    RapidAPI, with a free tier of 200 requests per month.
+  contact:
+    url: https://rapidapi.com/xinqian/api/cleandata-for-ai-agents
+  license:
+    name: MIT
+servers:
+  - url: https://cleandata-for-ai-agents.p.rapidapi.com
+    description: RapidAPI proxy for CleanData for AI Agents
+paths:
+  /v1/clean:
+    post:
+      summary: Clean tabular data and return Markdown
+      description: >-
+        Strips zero-width and invisible characters, normalizes whitespace,
+        drops empty rows when drop_empty_rows is true, and returns cleaned
+        rows plus a Markdown table. Values are not converted to numbers.
+      operationId: cleanTable
+      security:
+        - rapidApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: array
+                  description: Rows of tabular data to clean.
+                  items:
+                    type: object
+                    additionalProperties: true
+                drop_empty_rows:
+                  type: boolean
+                  description: Whether to drop fully empty rows.
+                  default: true
+                format_for_llm:
+                  type: boolean
+                  description: Whether to return an LLM-friendly Markdown table.
+                  default: true
+            example:
+              data:
+                - Product: "Wireless Earbuds Pro"
+                  Price: "$1,299.00"
+                  Note: "bestseller"
+                - Product: ""
+                  Price: ""
+                  Note: ""
+              drop_empty_rows: true
+              format_for_llm: true
+      responses:
+        "200":
+          description: Cleaned table.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  cleaned_rows:
+                    type: array
+                    description: Rows after cleaning, empty rows dropped.
+                    items:
+                      type: object
+                      additionalProperties: true
+                  raw_row_count:
+                    type: integer
+                    description: Number of input rows.
+                  cleaned_row_count:
+                    type: integer
+                    description: Number of rows after cleaning.
+                  duration_ms:
+                    type: number
+                    description: Server processing time in milliseconds.
+                  markdown_table:
+                    type: string
+                    description: Cleaned rows as a Markdown table.
+              example:
+                success: true
+                cleaned_rows:
+                  - Product: "Wireless Earbuds Pro"
+                    Price: "$1,299.00"
+                    Note: "bestseller"
+                raw_row_count: 2
+                cleaned_row_count: 1
+                duration_ms: 0.11
+                markdown_table: |-
+                  | Product | Price | Note |
+                  | --- | --- | --- |
+                  | Wireless Earbuds Pro | $1,299.00 | bestseller |
+        "400":
+          description: Invalid request body.
+components:
+  securitySchemes:
+    rapidApiKey:
+      type: apiKey
+      in: header
+      name: X-RapidAPI-Key
+      description: RapidAPI key, issued when subscribing on RapidAPI.
