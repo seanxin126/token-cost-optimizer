@@ -144,10 +144,23 @@ function doConvert() {
 }
 document.getElementById('countInput').addEventListener('input', updateCount);
 document.getElementById('convertBtn').addEventListener('click', doConvert);
-document.getElementById('formatSelect').addEventListener('change', doConvert);
+document.getElementById('formatSelect').addEventListener('change', function(){
+  document.getElementById('convertOut').textContent = '';
+  document.getElementById('convertErr').textContent = '';
+});
 document.getElementById('copyBtn').addEventListener('click', function(){
+  var btn = document.getElementById('copyBtn');
   var t = document.getElementById('convertOut').textContent;
-  if (navigator.clipboard) { navigator.clipboard.writeText(t); }
+  function flash(msg) {
+    var old = 'Copy Markdown';
+    btn.textContent = msg;
+    setTimeout(function(){ btn.textContent = old; }, 2000);
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(t).then(function(){ flash('Copied!'); }, function(){ flash('Copy failed'); });
+  } else {
+    flash('Copy failed');
+  }
 });
 updateCount();
 </script>
