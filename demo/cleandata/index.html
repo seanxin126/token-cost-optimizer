@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CleanData demo - clean tabular data for LLMs, in your browser</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#111}
+h1{font-size:1.6rem} h2{margin-top:2rem}
+textarea{width:100%;min-height:150px;padding:.6rem;font:inherit;box-sizing:border-box}
+select,button{font:inherit;padding:.45rem .8rem;margin:.3rem .3rem .3rem 0}
+pre{background:#f4f4f4;padding:1rem;white-space:pre-wrap;word-break:break-word;overflow:auto}
+.note{background:#fff8e1;border:1px solid #e6c200;padding:.8rem}
+a{color:#0b5fff}
+.small{color:#555;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>CleanData demo</h1>
+<p>Clean tabular data for LLMs, in your browser: strip invisible characters, normalise whitespace, drop empty rows, and output a Markdown table.</p>
+<p class="note"><strong>Local demo, not an API call.</strong> Everything on this page runs in your browser. Nothing you paste is sent to a server, no login, no API key. Values are kept as strings: money is <strong>not</strong> converted to numbers, for example "$1,299.00" stays "$1,299.00". To call the real API, use the RapidAPI link below.</p>
+<p class="small">Real API behaviour, measured on 2026-10-23: strip invisible / zero-width characters, normalise whitespace, delete empty rows, output Markdown. Measured saving on a 200-row sample: 6,761 to 3,458 tokens (-49%, cl100k_base). Privacy: nothing you type leaves this page.</p>
+
+<h2>Clean your table</h2>
+<label for="formatSelect">Input format</label>
+<select id="formatSelect">
+<option value="json">JSON</option>
+<option value="csv">CSV</option>
+</select>
+<label><input type="checkbox" id="dropEmpty" checked> Drop empty rows</label>
+<label for="cleanInput">Input (paste only)</label>
+<textarea id="cleanInput" placeholder='JSON example: [{"name":" Ada ","price":"$1,299.00"},{"name":"","price":""},{"name":"Bo","price":"$9.99"}]'>[{"name":" Ada ","price":"$1,299.00"},{"name":"","price":""},{"name":"Bo","price":"$9.99"}]</textarea>
+<button id="cleanBtn" type="button">Clean</button>
+<button id="copyBtn" type="button">Copy Markdown</button>
+<p id="cleanStats">Raw rows: 3 | Cleaned rows: 2 | Dropped: 1</p>
+<pre id="cleanOut">| name | price |
+| --- | --- |
+| Ada | $1,299.00 |
+| Bo | $9.99 |</pre>
+<p id="cleanErr" class="small"></p>
+
+<h2>Use the real API</h2>
+<ul>
+<li><a href="https://rapidapi.com/xinqian/api/cleandata-for-ai-agents">CleanData for AI Agents on RapidAPI</a> - POST /v1/clean, parameters data / drop_empty_rows / format_for_llm. Free tier: 200 requests/month.</li>
+<li><a href="https://seanxin126.github.io/token-cost-optimizer/demo/">Token Kit demo</a> - estimate tokens and convert tables to Markdown, from the same provider.</li>
+<li><a href="https://github.com/seanxin126/token-cost-optimizer">token-cost-optimizer on GitHub</a> - the open-source scripts behind these demos.</li>
+</ul>
+
+<script>
+function cleanValue(s) {
+  // Strip invisible / zero-width characters, normalise whitespace, trim.
+  return String(s).replace(/[\u200B-\u200F\uFEFF\u00AD]/g, '').replace(/\s+/g, ' ').trim();
+}
+function escapeCell(s) { return String(s).replace(/\|/g, '\\|'); }
+function rowsToMarkdown(rows) {
+  if (!rows || !rows.length) return '';
+  var head = rows[0];
+  var out = ['| ' + head.map(escapeCell).join(' | ') + ' |',
+             '| ' + head.map(function(){ return '---'; }).join(' | ') + ' |'];
+  for (var i = 1; i < rows.length; i++) {
+    out.push('| ' + rows[i].map(escapeCell).join(' | ') + ' |');
+  }
+  return out.join('\n');
+}
+function parseCsv(text) {
+  var rows = [], row = [], cur = '', inQuotes = false;
+  for (var i = 0; i < text.length; i++) {
+    var ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { cur += '"'; i++; } else { inQuotes = false; }
+      } else { cur += ch; }
+    } else if (ch === '"') { inQuotes = true; }
+    else if (ch === ',') { row.push(cur); cur = ''; }
+    else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+    else if (ch !== '\r') { cur += ch; }
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+function doClean() {
+  var fmt = document.getElementById('formatSelect').value;
+  var drop = document.getElementById('dropEmpty').checked;
+  var input = document.getElementById('cleanInput').value;
+  var err = document.getElementById('cleanErr');
+  err.textContent = '';
+  try {
+    var rawRows = 0, rows = [];
+    if (fmt === 'json') {
+      var data = JSON.parse(input);
+      if (!Array.isArray(data) || !data.length) throw new Error('JSON input must be a non-empty array of objects');
+      var keys = [];
+      data.forEach(function(x){ Object.keys(x).forEach(function(k){ if (keys.indexOf(k) === -1) keys.push(k); }); });
+      rawRows = data.length;
+      rows = [keys];
+      data.forEach(function(x){ rows.push(keys.map(function(k){ return x[k] === undefined || x[k] === null ? '' : cleanValue(x[k]); })); });
+    } else {
+      var csv = parseCsv(input);
+      if (!csv.length) throw new Error('CSV input is empty');
+      rawRows = csv.length - 1;
+      rows = [csv[0].map(cleanValue)];
+      for (var i = 1; i < csv.length; i++) rows.push(csv[i].map(cleanValue));
+    }
+    var cleaned = [rows[0]];
+    var dropped = 0;
+    for (var j = 1; j < rows.length; j++) {
+      if (drop && rows[j].every(function(c){ return c === ''; })) { dropped++; continue; }
+      cleaned.push(rows[j]);
+    }
+    if (!drop) dropped = 0;
+    document.getElementById('cleanOut').textContent = rowsToMarkdown(cleaned);
+    document.getElementById('cleanStats').textContent =
+      'Raw rows: ' + rawRows + ' | Cleaned rows: ' + (cleaned.length - 1) + ' | Dropped: ' + dropped;
+  } catch (e) {
+    document.getElementById('cleanOut').textContent = '';
+    document.getElementById('cleanStats').textContent = 'Raw rows: - | Cleaned rows: - | Dropped: -';
+    err.textContent = 'Clean failed: ' + e.message;
+  }
+}
+document.getElementById('cleanBtn').addEventListener('click', doClean);
+document.getElementById('formatSelect').addEventListener('change', function(){
+  document.getElementById('cleanOut').textContent = '';
+  document.getElementById('cleanErr').textContent = '';
+  document.getElementById('cleanStats').textContent = 'Raw rows: - | Cleaned rows: - | Dropped: -';
+});
+document.getElementById('copyBtn').addEventListener('click', function(){
+  var btn = document.getElementById('copyBtn');
+  var t = document.getElementById('cleanOut').textContent;
+  function flash(msg) {
+    var old = 'Copy Markdown';
+    btn.textContent = msg;
+    setTimeout(function(){ btn.textContent = old; }, 2000);
+  }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(t).then(function(){ flash('Copied!'); }, function(){ flash('Copy failed'); });
+  } else {
+    flash('Copy failed');
+  }
+});
+</script>
+</body>
+</html>
